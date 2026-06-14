@@ -303,6 +303,7 @@ function applyTheme(t) {
   }
   saveSettings();
   renderSettingsThemePicker();
+  updateInstallIcon();
 }
 
 // ── TOAST ──────────────────────────────────────────────────
@@ -752,7 +753,7 @@ function renderSettings(wrap) {
           </div>
           <div class="set-r" style="display:flex;gap:8px;align-items:center">
             ${state.notificationsEnabled?`<button class="ac-btn" id="test-notif-btn" style="white-space:nowrap">Testar</button>`:''}
-            <div class="tog${state.notificationsEnabled?' on':''}" id="notif-tog"></div>
+            <div class="tog${state.notificationsEnabled?' on':''}" id="notif-tog"><div class="tog-thumb"></div></div>
           </div>
         </div>
         <div class="set-item">
@@ -1258,11 +1259,135 @@ function iconSVG(name, size=20) {
 
 // ── INSTALL PROMPT ─────────────────────────────────────────
 let deferredPrompt = null;
+const INSTALL_DISMISS_KEY = 'av_install_dismissed';
+const ONBOARD_KEY = 'av_onboarded_v1';
+
+function getInstallIcon() {
+  const map = {navy:'icon-white.png',light:'icon-192.png',blue:'icon-white.png',dark:'icon-white.png',white:'icon-192.png'};
+  return `icons/${map[state.theme]||'icon-192.png'}`;
+}
+function updateInstallIcon() {
+  const el = document.getElementById('ip-icon');
+  if (el) el.src = getInstallIcon();
+}
+function showInstallPrompt() {
+  const el = document.getElementById('install-prompt');
+  if (!el) return;
+  updateInstallIcon();
+  el.classList.add('show');
+}
+function hideInstallPrompt() {
+  document.getElementById('install-prompt')?.classList.remove('show');
+}
+
 window.addEventListener('beforeinstallprompt', e=>{
   e.preventDefault();
   deferredPrompt=e;
   document.getElementById('install-btn')?.classList.remove('hidden');
+  // Show install prompt if not recently dismissed and not in onboarding
+  const dismissed = localStorage.getItem(INSTALL_DISMISS_KEY);
+  const twoDaysAgo = Date.now() - 172800000;
+  if (!dismissed || parseInt(dismissed) < twoDaysAgo) {
+    // Delay to let onboarding appear first (onboarding shows at 800ms)
+    const isFirstVisit = !localStorage.getItem(ONBOARD_KEY);
+    setTimeout(showInstallPrompt, isFirstVisit ? 8000 : 3500);
+  }
 });
+window.addEventListener('appinstalled', ()=>{
+  hideInstallPrompt();
+  deferredPrompt = null;
+  document.getElementById('install-btn')?.classList.add('hidden');
+  showToast('🎉 App instalado com sucesso!', 3500);
+});
+
+// ── ONBOARDING ──────────────────────────────────────────────
+let _obStep = 0;
+let _obTheme = 'navy';
+const _TOTAL_OB_STEPS = 2;
+
+function showOnboarding() {
+  const ovl = document.getElementById('onboard-ovl');
+  const sheet = document.getElementById('onboard-sheet');
+  if (!ovl || !sheet) return;
+  _obTheme = state.theme;
+  _obStep = 1;
+  _renderObStep(sheet, _obStep);
+  requestAnimationFrame(()=> ovl.classList.add('vis'));
+}
+function closeOnboarding() {
+  const ovl = document.getElementById('onboard-ovl');
+  ovl?.classList.remove('vis');
+  localStorage.setItem(ONBOARD_KEY, '1');
+}
+function _renderObStep(sheet, step) {
+  const dots = Array.from({length:_TOTAL_OB_STEPS},(_,i)=>
+    `<div class="ob-dot${i<step?' act':''}"></div>`).join('');
+
+  if (step === 1) {
+    sheet.innerHTML = `
+      <div class="ob-handle"></div>
+      <div class="ob-step ob-step-enter">
+        <div class="ob-progress">${dots}</div>
+        <div class="ob-icon ob-icon-bg">
+          <img src="${getInstallIcon()}" alt="AV" id="ob-logo">
+        </div>
+        <div class="ob-title">Bem-vindo ao AV Agenda</div>
+        <div class="ob-sub">Escolha o tema que mais combina com você — é possível mudar depois em Configurações.</div>
+        <div class="ob-theme-grid" id="ob-theme-grid">
+          ${THEMES.map(t=>`
+            <div class="ob-theme-opt${_obTheme===t?' sel':''}" data-theme="${t}">
+              <div class="ob-theme-sw sw-${t}"></div>
+              <span class="ob-theme-lbl">${THEME_LABELS[t]}</span>
+            </div>`).join('')}
+        </div>
+        <button class="ob-btn-primary" id="ob-next">Continuar →</button>
+        <button class="ob-btn-secondary" id="ob-skip">Pular tudo</button>
+      </div>`;
+
+    sheet.querySelectorAll('.ob-theme-opt').forEach(o=>{
+      o.addEventListener('click',()=>{
+        _obTheme = o.dataset.theme;
+        applyTheme(_obTheme);
+        sheet.querySelectorAll('.ob-theme-opt').forEach(x=>x.classList.remove('sel'));
+        o.classList.add('sel');
+        const logo = sheet.querySelector('#ob-logo');
+        if (logo) logo.src = getInstallIcon();
+      });
+    });
+    sheet.querySelector('#ob-next').addEventListener('click',()=>{
+      _obStep = 2; _renderObStep(sheet, 2);
+    });
+    sheet.querySelector('#ob-skip').addEventListener('click', closeOnboarding);
+
+  } else if (step === 2) {
+    sheet.innerHTML = `
+      <div class="ob-handle"></div>
+      <div class="ob-step ob-step-enter">
+        <div class="ob-progress">${dots}</div>
+        <div class="ob-icon" style="background:linear-gradient(135deg,#27AE60,#2ECC71);box-shadow:0 12px 32px rgba(39,174,96,.4);margin:0 auto var(--sp-lg)">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="position:relative;z-index:1">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        </div>
+        <div class="ob-title">Ativar lembretes?</div>
+        <div class="ob-sub">Receba avisos antes de cada consulta e nunca perca um atendimento.</div>
+        <div class="ob-notif-features">
+          <div class="ob-feature"><span class="ob-feature-icon">⏰</span> Lembrete 30 min antes da consulta</div>
+          <div class="ob-feature"><span class="ob-feature-icon">🔔</span> Lembrete 15 min antes da consulta</div>
+          <div class="ob-feature"><span class="ob-feature-icon">📋</span> Resumo diário da agenda pela manhã</div>
+        </div>
+        <button class="ob-btn-primary" id="ob-notif-yes">🔔 Ativar Notificações</button>
+        <button class="ob-btn-secondary" id="ob-notif-no">Não, obrigado</button>
+      </div>`;
+
+    sheet.querySelector('#ob-notif-yes').addEventListener('click', async ()=>{
+      closeOnboarding();
+      await requestNotifications();
+    });
+    sheet.querySelector('#ob-notif-no').addEventListener('click', closeOnboarding);
+  }
+}
 
 // ── INIT ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', ()=>{
@@ -1289,15 +1414,39 @@ document.addEventListener('DOMContentLoaded', ()=>{
     switchView('settings');
   });
 
-  // Install button
+  // Install button (header)
   document.getElementById('install-btn')?.addEventListener('click',async()=>{
     if(!deferredPrompt) return;
     deferredPrompt.prompt();
     const {outcome} = await deferredPrompt.userChoice;
-    if(outcome==='accepted') showToast('App instalado com sucesso!');
+    if(outcome==='accepted') showToast('🎉 App instalado com sucesso!', 3000);
     deferredPrompt=null;
     document.getElementById('install-btn')?.classList.add('hidden');
   });
+
+  // Install prompt card buttons
+  document.getElementById('ip-install')?.addEventListener('click',async()=>{
+    if(!deferredPrompt) { hideInstallPrompt(); return; }
+    hideInstallPrompt();
+    deferredPrompt.prompt();
+    const {outcome} = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    document.getElementById('install-btn')?.classList.add('hidden');
+    if(outcome==='accepted') showToast('🎉 App instalado com sucesso!', 3500);
+  });
+  document.getElementById('ip-dismiss')?.addEventListener('click',()=>{
+    hideInstallPrompt();
+    localStorage.setItem(INSTALL_DISMISS_KEY, Date.now().toString());
+  });
+  document.getElementById('ip-close')?.addEventListener('click',()=>{
+    hideInstallPrompt();
+    localStorage.setItem(INSTALL_DISMISS_KEY, Date.now().toString());
+  });
+
+  // Onboarding (first visit only)
+  if (!localStorage.getItem(ONBOARD_KEY)) {
+    setTimeout(showOnboarding, 900);
+  }
 
   // Update header every minute
   setInterval(renderHeader, 60000);

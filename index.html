@@ -175,6 +175,37 @@
   <!-- TOAST -->
   <div class="toast" id="toast" role="alert" aria-live="polite"></div>
 
+  <!-- INSTALL PROMPT -->
+  <div class="install-prompt" id="install-prompt" role="complementary" aria-label="Instalar aplicativo">
+    <div class="ip-card">
+      <button class="ip-close" id="ip-close" aria-label="Fechar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="ip-top">
+        <div class="ip-icon-wrap">
+          <img src="icons/icon-192.png" class="ip-icon" id="ip-icon" alt="AV Agenda">
+          <span class="ip-new-dot"></span>
+        </div>
+        <div class="ip-text">
+          <div class="ip-title">Instalar AV Agenda</div>
+          <div class="ip-sub">Acesso rápido · Funciona offline · Sem abrir navegador</div>
+        </div>
+      </div>
+      <div class="ip-btns">
+        <button class="ip-btn-dismiss" id="ip-dismiss">Agora não</button>
+        <button class="ip-btn-install" id="ip-install">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Instalar App
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ONBOARDING OVERLAY -->
+  <div class="onboard-ovl" id="onboard-ovl" role="dialog" aria-modal="true" aria-label="Configuração inicial">
+    <div class="onboard-sheet" id="onboard-sheet"></div>
+  </div>
+
 </div><!-- /app -->
 
 <style>
