@@ -38,12 +38,12 @@
   --bg-app:     #162338;
   --bg:         #2D4464;
   --bg-surf:    #3a5278;
-  --bg-card:    rgba(255,255,255,.08);
-  --bg-inp:     rgba(255,255,255,.12);
-  --bg-hov:     rgba(255,255,255,.1);
+  --bg-card:    rgba(255,255,255,.12);
+  --bg-inp:     rgba(255,255,255,.16);
+  --bg-hov:     rgba(255,255,255,.14);
   --tx1:        #FFFFFF;
-  --tx2:        rgba(255,255,255,.72);
-  --tx3:        rgba(255,255,255,.42);
+  --tx2:        rgba(255,255,255,.82);
+  --tx3:        rgba(255,255,255,.55);
   --acc:        #7099B8;
   --acc-h:      #8aabca;
   --bdr:        rgba(255,255,255,.12);
@@ -94,32 +94,32 @@
 }
 .theme-blue {
   --bg-app:     #4d7a9b;
-  --bg:         #7099B8;
+  --bg:         #6b90ab;
   --bg-surf:    #8aabca;
-  --bg-card:    rgba(255,255,255,.18);
-  --bg-inp:     rgba(255,255,255,.22);
-  --bg-hov:     rgba(255,255,255,.15);
+  --bg-card:    rgba(255,255,255,.28);
+  --bg-inp:     rgba(255,255,255,.35);
+  --bg-hov:     rgba(255,255,255,.2);
   --tx1:        #FFFFFF;
-  --tx2:        rgba(255,255,255,.82);
-  --tx3:        rgba(255,255,255,.5);
-  --acc:        #2D4464;
-  --acc-h:      #3a5278;
-  --bdr:        rgba(255,255,255,.2);
-  --bdr-a:      rgba(255,255,255,.7);
-  --shd:        rgba(0,0,0,.22);
-  --nav-bg:     #5c84a3;
-  --nav-act:    rgba(255,255,255,.2);
+  --tx2:        rgba(255,255,255,.9);
+  --tx3:        rgba(255,255,255,.72);
+  --acc:        #FFFFFF;
+  --acc-h:      rgba(255,255,255,.85);
+  --bdr:        rgba(255,255,255,.32);
+  --bdr-a:      #FFFFFF;
+  --shd:        rgba(0,0,0,.25);
+  --nav-bg:     #4d7a9b;
+  --nav-act:    rgba(255,255,255,.25);
   --nav-act-tx: #FFFFFF;
   --hdr-bg:     #2D4464;
   --fab-bg:     #2D4464;
   --fab-h:      #3a5278;
   --fab-tx:     #FFFFFF;
   --ovl:        rgba(0,0,0,.62);
-  --mod-bg:     #5c84a3;
-  --tl-ln:      rgba(255,255,255,.18);
+  --mod-bg:     #4d7a9b;
+  --tl-ln:      rgba(255,255,255,.22);
   --cal-td-bg:  #2D4464;
   --cal-td-tx:  #FFFFFF;
-  --scr:        rgba(255,255,255,.28);
+  --scr:        rgba(255,255,255,.35);
 }
 .theme-dark {
   --bg-app:     #050505;
@@ -168,7 +168,7 @@
   --nav-bg:     #FFFFFF;
   --nav-act:    rgba(45,68,100,.06);
   --nav-act-tx: #2D4464;
-  --hdr-bg:     #FFFFFF;
+  --hdr-bg:     #2D4464;
   --fab-bg:     #2D4464;
   --fab-h:      #3a5278;
   --fab-tx:     #FFFFFF;
@@ -205,9 +205,12 @@ input,select,textarea {
 input:focus,select:focus,textarea:focus { border-color:var(--bdr-a); }
 select {
   appearance:none; -webkit-appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat; background-position:right 12px center; padding-right:40px;
 }
+/* Force native text color on dark/blue themes */
+.theme-navy select, .theme-dark select { color-scheme: dark; }
+.theme-blue select { color-scheme: dark; }
 textarea { resize:vertical; min-height:76px; }
 label { display:block; font-size:13px; font-weight:600; color:var(--tx2); margin-bottom:5px; }
 
@@ -600,11 +603,13 @@ label { display:block; font-size:13px; font-weight:600; color:var(--tx2); margin
 
 /* Toggle */
 .tog {
-  width:46px; height:26px; background:var(--bdr);
+  width:46px; height:26px; background:rgba(128,128,128,.35);
   border-radius:var(--r-f); position:relative; cursor:pointer;
-  transition:background var(--tx);
+  transition:background var(--tx); flex-shrink:0;
+  border:1.5px solid rgba(255,255,255,.2);
 }
-.tog.on { background:var(--s-confirmed); }
+.theme-light .tog, .theme-white .tog { background:#CCCCCC; border-color:#BBBBBB; }
+.tog.on { background:#27AE60; border-color:transparent; }
 .tog-thumb {
   position:absolute; top:3px; left:3px;
   width:20px; height:20px; background:#fff;

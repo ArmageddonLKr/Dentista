@@ -184,12 +184,49 @@ function updatePendingCount() {
 
 // ── NOTIFICATIONS ──────────────────────────────────────────
 async function requestNotifications() {
-  if (!('Notification' in window)) { showToast('Notificações não suportadas neste dispositivo'); return; }
-  const perm = await Notification.requestPermission();
+  if (!('Notification' in window)) {
+    showToast('Notificações não suportadas neste navegador', 3500);
+    return;
+  }
+  // Already denied — guide user to browser settings
+  if (Notification.permission === 'denied') {
+    showToast('Notificações bloqueadas. Vá em Configurações do navegador → Site → Permissões.', 5000);
+    return;
+  }
+  // Already granted — just enable
+  if (Notification.permission === 'granted') {
+    state.notificationsEnabled = true;
+    saveSettings();
+    scheduleNotifications();
+    showToast('Notificações já estão ativas!');
+    renderSettings();
+    return;
+  }
+  // Request permission — handle both Promise and callback APIs
+  let perm;
+  try {
+    perm = await Notification.requestPermission();
+  } catch {
+    perm = await new Promise(resolve => Notification.requestPermission(resolve));
+  }
   state.notificationsEnabled = perm === 'granted';
   saveSettings();
-  if (state.notificationsEnabled) { scheduleNotifications(); showToast('Notificações ativadas!'); }
-  else showToast('Permissão negada para notificações');
+  if (state.notificationsEnabled) {
+    scheduleNotifications();
+    showToast('Notificações ativadas!');
+    // Confirmation notification so user knows it worked
+    setTimeout(() => {
+      try {
+        new Notification('✅ AV Agenda ativada', {
+          body: 'Você será avisado 30 e 15 min antes de cada consulta.',
+          icon: '/icons/icon-192.png',
+          tag: 'av-confirm',
+        });
+      } catch {}
+    }, 400);
+  } else {
+    showToast('Permissão negada. Ative nas configurações do navegador.', 4000);
+  }
   renderSettings();
 }
 function clearNotifTimers() { state.notifTimers.forEach(t=>clearTimeout(t)); state.notifTimers=[]; }
@@ -248,13 +285,21 @@ function fireDailySummary() {
 function applyTheme(t) {
   state.theme = t;
   document.body.className = `theme-${t}`;
-  document.querySelector('meta[name="theme-color"]').content =
-    {navy:'#2D4464',light:'#2D4464',blue:'#7099B8',dark:'#0A0A0A',white:'#FFFFFF'}[t];
-  // Icon: on navy/dark use white icon, on light/white use navy icon, on blue use light icon
+  // All headers are navy (#2D4464) — only dark theme has black header
+  const themeColors = {navy:'#2D4464',light:'#2D4464',blue:'#2D4464',dark:'#0A0A0A',white:'#2D4464'};
+  document.querySelector('meta[name="theme-color"]').content = themeColors[t];
+  // Icon on navy/dark/blue headers: use white cone; on any header use the appropriate variant
   const icon = document.querySelector('.hdr-logo-icon');
   if (icon) {
-    const map = {navy:'icon-192.png',light:'icon-light.png',blue:'icon-blue.png',dark:'icon-192.png',white:'icon-light.png'};
-    icon.src = `icons/${map[t]||'icon-192.png'}`;
+    // All themes now have dark headers — use white-transparent icon which shows on dark backgrounds
+    const map = {
+      navy:  'icon-white.png',  // white cone on navy header
+      light: 'icon-light.png',  // gray/white cone on navy header
+      blue:  'icon-white.png',  // white cone on navy header
+      dark:  'icon-white.png',  // white cone on black header
+      white: 'icon-light.png',  // gray/white cone on navy header
+    };
+    icon.src = `icons/${map[t]||'icon-white.png'}`;
   }
   saveSettings();
   renderSettingsThemePicker();
@@ -702,10 +747,11 @@ function renderSettings(wrap) {
             <div class="set-icon">${iconSVG('bell')}</div>
             <div>
               <div class="set-lbl">Alertas de consulta</div>
-              <div class="set-sub">30 e 15 min antes de cada atendimento</div>
+              <div class="set-sub">30 e 15 min antes de cada atendimento${state.notificationsEnabled?' · Ativo ✅':' · Desativado'}</div>
             </div>
           </div>
-          <div class="set-r">
+          <div class="set-r" style="display:flex;gap:8px;align-items:center">
+            ${state.notificationsEnabled?`<button class="ac-btn" id="test-notif-btn" style="white-space:nowrap">Testar</button>`:''}
             <div class="tog${state.notificationsEnabled?' on':''}" id="notif-tog"></div>
           </div>
         </div>
@@ -795,6 +841,19 @@ function renderSettings(wrap) {
   wrap.querySelector('#notif-tog').addEventListener('click',()=>{
     if (!state.notificationsEnabled) requestNotifications();
     else { state.notificationsEnabled=false; saveSettings(); clearNotifTimers(); renderSettings(); showToast('Notificações desativadas'); }
+  });
+  wrap.querySelector('#test-notif-btn')?.addEventListener('click',()=>{
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      showToast('Ative as notificações primeiro'); return;
+    }
+    try {
+      new Notification('🦷 Teste — Anderson Vale Agenda', {
+        body: 'Notificações funcionando corretamente!',
+        icon: '/icons/icon-192.png',
+        tag: 'av-test',
+      });
+      showToast('Notificação de teste enviada!');
+    } catch(e) { showToast('Erro: ' + e.message, 4000); }
   });
   wrap.querySelector('#summary-time').addEventListener('change',e=>{state.summaryTime=parseInt(e.target.value);saveSettings();});
   wrap.querySelector('#work-start').addEventListener('change',e=>{state.workStart=parseInt(e.target.value);saveSettings();});
@@ -1243,6 +1302,20 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Update header every minute
   setInterval(renderHeader, 60000);
 
+  // Reschedule notifications whenever page becomes visible again (tab switch, lock screen, etc.)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      renderHeader();
+      if (state.notificationsEnabled) scheduleNotifications();
+    }
+  });
+  window.addEventListener('focus', () => {
+    if (state.notificationsEnabled) scheduleNotifications();
+  });
+  window.addEventListener('pageshow', () => {
+    if (state.notificationsEnabled) scheduleNotifications();
+  });
+
   // Check notifications
   if('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').then(reg=>{
@@ -1255,6 +1328,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if(params.get('action')==='new') openModal('add',{});
   if(params.get('view')) switchView(params.get('view'));
 
-  scheduleNotifications();
+  // Sync notification state with actual browser permission
+  if ('Notification' in window) {
+    if (Notification.permission !== 'granted') state.notificationsEnabled = false;
+    else if (state.notificationsEnabled) scheduleNotifications();
+  }
   updatePendingCount();
 });
