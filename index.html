@@ -15,6 +15,22 @@
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
 
+  <!-- Critical CSS: inline so splash renders correctly even with old SW cache -->
+  <style>
+    #splash{position:fixed;inset:0;z-index:9999;background:#2D4464;display:flex;align-items:center;justify-content:center;transition:opacity .5s ease,visibility .5s ease;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+    #splash.out{opacity:0;visibility:hidden;pointer-events:none}
+    .splash-inner{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+    .splash-icon-badge{width:88px;height:88px;border-radius:22px;overflow:hidden;background:#1a2d47;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.12);margin-bottom:8px;animation:sp-pop .55s cubic-bezier(.34,1.56,.64,1) both}
+    .splash-icon-badge img{width:88px;height:88px;display:block;object-fit:cover}
+    .splash-name{color:#fff;font-size:21px;font-weight:800;letter-spacing:.2px;animation:sp-up .35s .2s ease both}
+    .splash-cro{color:rgba(255,255,255,.55);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.8px;animation:sp-up .35s .3s ease both}
+    .splash-bar-wrap{width:48px;height:3px;background:rgba(255,255,255,.15);border-radius:3px;margin-top:28px;overflow:hidden;animation:sp-up .35s .4s ease both}
+    .splash-bar{height:100%;background:rgba(255,255,255,.8);border-radius:3px;animation:sp-bar .75s .5s ease both}
+    @keyframes sp-pop{from{transform:scale(.35);opacity:0}to{transform:scale(1);opacity:1}}
+    @keyframes sp-up{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+    @keyframes sp-bar{from{width:0}to{width:100%}}
+  </style>
+
   <title>AV Agenda — Anderson Vale</title>
 </head>
 <body class="theme-navy">
@@ -22,11 +38,11 @@
 <!-- SPLASH SCREEN -->
 <div id="splash" aria-hidden="true">
   <div class="splash-inner">
-    <div class="splash-logo-wrap">
-      <img src="icons/icon-white.png" class="splash-logo" alt="AV Agenda">
+    <div class="splash-icon-badge">
+      <img src="icons/icon-192.png" width="88" height="88" alt="AV Agenda">
     </div>
-    <div class="splash-name">Anderson Vale</div>
-    <div class="splash-cro">Cirurgião-Dentista</div>
+    <div class="splash-name">AV Agenda</div>
+    <div class="splash-cro">Anderson Vale · Cirurgião-Dentista</div>
     <div class="splash-bar-wrap">
       <div class="splash-bar"></div>
     </div>

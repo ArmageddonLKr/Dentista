@@ -1288,16 +1288,17 @@ function hideInstallPrompt() {
 }
 
 window.addEventListener('beforeinstallprompt', e=>{
+  // Don't intercept if already running as installed PWA
+  if (window.matchMedia('(display-mode: standalone)').matches) return;
   e.preventDefault();
   deferredPrompt=e;
   document.getElementById('install-btn')?.classList.remove('hidden');
-  // Show install prompt if not recently dismissed and not in onboarding
+  // Show install prompt if not recently dismissed
   const dismissed = localStorage.getItem(INSTALL_DISMISS_KEY);
   const twoDaysAgo = Date.now() - 172800000;
   if (!dismissed || parseInt(dismissed) < twoDaysAgo) {
-    // Delay to let onboarding appear first (onboarding shows at 800ms)
     const isFirstVisit = !localStorage.getItem(ONBOARD_KEY);
-    setTimeout(showInstallPrompt, isFirstVisit ? 8000 : 3500);
+    setTimeout(showInstallPrompt, isFirstVisit ? 9000 : 4000);
   }
 });
 window.addEventListener('appinstalled', ()=>{
