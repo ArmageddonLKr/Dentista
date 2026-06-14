@@ -309,10 +309,17 @@ function applyTheme(t) {
 // ── TOAST ──────────────────────────────────────────────────
 function showToast(msg, duration=2500) {
   const el = document.getElementById('toast');
+  // Push toast above install prompt if it's visible
+  const ip = document.getElementById('install-prompt');
+  if (ip?.classList.contains('show')) {
+    el.style.bottom = 'calc(var(--nav) + 180px + env(safe-area-inset-bottom,0px))';
+  } else {
+    el.style.bottom = '';
+  }
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(el._t);
-  el._t = setTimeout(()=>el.classList.remove('show'), duration);
+  el._t = setTimeout(()=>{ el.classList.remove('show'); el.style.bottom=''; }, duration);
 }
 
 // ── RENDER SYSTEM ──────────────────────────────────────────
@@ -1395,6 +1402,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
   applyTheme(state.theme);
   renderHeader();
   renderView();
+
+  // Dismiss splash screen
+  const splash = document.getElementById('splash');
+  if (splash) {
+    requestAnimationFrame(()=>{
+      setTimeout(()=>{
+        splash.classList.add('out');
+        setTimeout(()=>splash.remove(), 600);
+      }, 650);
+    });
+  }
 
   // Nav buttons
   document.querySelectorAll('.nav-btn,.sb-item').forEach(btn=>{
