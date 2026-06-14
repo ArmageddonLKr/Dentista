@@ -1489,6 +1489,15 @@ document.addEventListener('DOMContentLoaded', ()=>{
     navigator.serviceWorker.register('/sw.js').then(reg=>{
       console.log('SW registered');
     }).catch(e=>console.log('SW error',e));
+
+    // Auto-reload when a new SW takes control (delivers updated files)
+    let swRefreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+      if (swRefreshing) return;
+      swRefreshing = true;
+      showToast('✨ Atualizando para nova versão...', 2500);
+      setTimeout(()=> window.location.reload(), 2600);
+    });
   }
 
   // Handle URL params
