@@ -11,8 +11,8 @@
   <meta name="mobile-web-app-capable" content="yes">
 
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-maskable-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
 
   <!-- Critical CSS: inline so splash renders correctly even with old SW cache -->
@@ -20,7 +20,7 @@
     #splash{position:fixed;inset:0;z-index:9999;background:#2D4464;display:flex;align-items:center;justify-content:center;transition:opacity .5s ease,visibility .5s ease;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
     #splash.out{opacity:0;visibility:hidden;pointer-events:none}
     .splash-inner{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
-    .splash-icon-badge{width:88px;height:88px;border-radius:22px;overflow:hidden;background:#1a2d47;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.12);margin-bottom:8px;animation:sp-pop .55s cubic-bezier(.34,1.56,.64,1) both}
+    .splash-icon-badge{width:88px;height:88px;border-radius:22px;overflow:hidden;background:#2D4464;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.12);margin-bottom:8px;animation:sp-pop .55s cubic-bezier(.34,1.56,.64,1) both}
     .splash-icon-badge img{width:88px;height:88px;display:block;object-fit:cover}
     .splash-name{color:#fff;font-size:21px;font-weight:800;letter-spacing:.2px;animation:sp-up .35s .2s ease both}
     .splash-cro{color:rgba(255,255,255,.55);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.8px;animation:sp-up .35s .3s ease both}
@@ -39,7 +39,7 @@
 <div id="splash" aria-hidden="true">
   <div class="splash-inner">
     <div class="splash-icon-badge">
-      <img src="icons/icon-192.png" width="88" height="88" alt="AV Agenda">
+      <img src="icons/icon-maskable-192.png" width="88" height="88" alt="AV Agenda">
     </div>
     <div class="splash-name">AV Agenda</div>
     <div class="splash-cro">Anderson Vale · Cirurgião-Dentista</div>
@@ -54,7 +54,7 @@
   <!-- HEADER -->
   <header class="app-hdr">
     <div class="hdr-logo">
-      <img src="icons/icon-192.png" alt="AV" class="hdr-logo-icon" id="hdr-icon">
+      <img src="icons/icon-white.png" alt="AV" class="hdr-logo-icon" id="hdr-icon">
       <div class="hdr-logo-text">
         <span class="hdr-name">Anderson Vale</span>
         <span class="hdr-sub">Cirurgião-Dentista</span>

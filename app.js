@@ -48,7 +48,11 @@ let state = {
 
 // ── HELPERS ────────────────────────────────────────────────
 function today() { return dateKey(new Date()); }
-function dateKey(d) { return d.toISOString().split('T')[0]; }
+function dateKey(d) {
+  // Use LOCAL date components — toISOString() converts to UTC and produces an
+  // off-by-one day in negative-offset timezones (e.g. Brazil, UTC-3) after 21h.
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 function startOfWeek(d) {
   const r = new Date(d);
   const day = r.getDay();
@@ -58,7 +62,7 @@ function startOfWeek(d) {
 }
 function addDays(d, n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
 function addWeeks(d, n) { return addDays(d, n*7); }
-function parseDate(s) { const [y,m,d]=s.split('-'); return new Date(y,m-1,d); }
+function parseDate(s) { const [y,m,d]=String(s).split('-').map(Number); return new Date(y,(m||1)-1,d||1); }
 function fmtDate(s) {
   if (!s) return '';
   const d = parseDate(s);
@@ -77,6 +81,12 @@ function endTime(startTime, duration) {
   return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
 }
 function uid() { return Date.now().toString(36)+Math.random().toString(36).substr(2,6); }
+// Escape user-supplied text before injecting into innerHTML / attributes.
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
 function getInitials(name) {
   if (!name) return '?';
   return name.trim().split(/\s+/).slice(0,2).map(w=>w[0].toUpperCase()).join('');
@@ -114,16 +124,22 @@ function loadAll() {
   } catch {}
 }
 function saveAppointments() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.appointments));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.appointments));
+  } catch (e) {
+    showToast('Não foi possível salvar (armazenamento cheio ou bloqueado).', 4000);
+  }
 }
 function saveSettings() {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify({
-    theme: state.theme,
-    notificationsEnabled: state.notificationsEnabled,
-    workStart: state.workStart,
-    workEnd: state.workEnd,
-    summaryTime: state.summaryTime,
-  }));
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      theme: state.theme,
+      notificationsEnabled: state.notificationsEnabled,
+      workStart: state.workStart,
+      workEnd: state.workEnd,
+      summaryTime: state.summaryTime,
+    }));
+  } catch {}
 }
 
 // ── APPOINTMENT CRUD ───────────────────────────────────────
@@ -131,7 +147,7 @@ function getApptById(id) { return state.appointments.find(a=>a.id===id); }
 function apptsByDate(dateStr) {
   return state.appointments
     .filter(a=>a.date===dateStr)
-    .sort((a,b)=>a.startTime.localeCompare(b.startTime));
+    .sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
 }
 function apptsByWeek(weekStart) {
   const keys = Array.from({length:7},(_,i)=>dateKey(addDays(weekStart,i)));
@@ -180,6 +196,9 @@ function updatePendingCount() {
   state.pendingCount = state.appointments.filter(a=>a.date===t&&(a.status==='scheduled'||a.status==='confirmed')).length;
   const badge = document.querySelector('.nav-btn-badge');
   if (badge) { badge.textContent = state.pendingCount; badge.style.display = state.pendingCount ? 'block' : 'none'; }
+  // Desktop sidebar badge
+  const sb = document.getElementById('sb-badge');
+  if (sb) { sb.textContent = state.pendingCount; sb.style.display = state.pendingCount ? 'inline-block' : 'none'; }
 }
 
 // ── NOTIFICATIONS ──────────────────────────────────────────
@@ -216,13 +235,10 @@ async function requestNotifications() {
     showToast('Notificações ativadas!');
     // Confirmation notification so user knows it worked
     setTimeout(() => {
-      try {
-        new Notification('✅ AV Agenda ativada', {
-          body: 'Você será avisado 30 e 15 min antes de cada consulta.',
-          icon: '/icons/icon-192.png',
-          tag: 'av-confirm',
-        });
-      } catch {}
+      showNotif('✅ AV Agenda ativada', {
+        body: 'Você será avisado 30 e 15 min antes de cada consulta.',
+        tag: 'av-confirm',
+      });
     }, 400);
   } else {
     showToast('Permissão negada. Ative nas configurações do navegador.', 4000);
@@ -230,6 +246,20 @@ async function requestNotifications() {
   renderSettings();
 }
 function clearNotifTimers() { state.notifTimers.forEach(t=>clearTimeout(t)); state.notifTimers=[]; }
+// Show a notification via the Service Worker (required on Android/Chrome — the
+// Notification constructor throws "Illegal constructor" there), falling back to
+// the constructor on desktop browsers without an active SW.
+function showNotif(title, opts={}) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  const options = Object.assign({ icon:'icons/icon-192.png', badge:'icons/icon-192.png' }, opts);
+  if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+    navigator.serviceWorker.ready
+      .then(reg => reg.showNotification(title, options))
+      .catch(() => { try { new Notification(title, options); } catch {} });
+  } else {
+    try { new Notification(title, options); } catch {}
+  }
+}
 function scheduleNotifications() {
   if (!state.notificationsEnabled) return;
   clearNotifTimers();
@@ -258,7 +288,7 @@ function fireNotif(appt, minutesBefore) {
     title = `🦷 Em ${minutesBefore} min: ${a.patientName}`;
     body = `${a.procedure} às ${a.startTime}`;
   }
-  new Notification(title, {body, icon:'/icons/icon-192.png', badge:'/icons/icon-192.png', tag:`appt-${a.id}-${minutesBefore}`});
+  showNotif(title, {body, tag:`appt-${a.id}-${minutesBefore}`, renotify:true});
 }
 function scheduleDailySummary() {
   const now = new Date();
@@ -277,7 +307,7 @@ function fireDailySummary() {
   if (!state.notificationsEnabled) return;
   const title = `📋 Agenda de hoje — ${list.length} atendimento${list.length!==1?'s':''}`;
   const body = list.length ? list.slice(0,3).map(a=>`${a.startTime} ${a.patientName}`).join('\n') : 'Nenhum agendamento para hoje.';
-  new Notification(title, {body, icon:'/icons/icon-192.png', tag:'daily-summary'});
+  showNotif(title, {body, tag:'daily-summary'});
   scheduleDailySummary();
 }
 
@@ -502,16 +532,16 @@ function buildApptCard(a, idx=0) {
   const end = endTime(a.startTime, a.duration);
   return `<div class="appt-card anim-delay-${Math.min(idx,4)}" data-id="${a.id}" data-s="${a.status}">
     <div class="ac-top">
-      <div class="ac-patient">${a.patientName||'Paciente'}</div>
-      <span class="ac-badge badge-${a.status}">${STATUS_LABELS[a.status]||a.status}</span>
+      <div class="ac-patient">${esc(a.patientName||'Paciente')}</div>
+      <span class="ac-badge badge-${a.status}">${STATUS_LABELS[a.status]||esc(a.status)}</span>
     </div>
     <div class="ac-meta">
-      <span class="ac-meta-item">${iconSVG('clock',13)} ${a.startTime}${end?' – '+end:''}</span>
-      <span class="ac-meta-item">${iconSVG('tooth',13)} ${a.procedure||'—'}</span>
+      <span class="ac-meta-item">${iconSVG('clock',13)} ${esc(a.startTime)}${end?' – '+end:''}</span>
+      <span class="ac-meta-item">${iconSVG('tooth',13)} ${esc(a.procedure||'—')}</span>
       ${dur?`<span class="ac-meta-item">${iconSVG('timer',13)} ${dur}</span>`:''}
-      ${a.patientPhone?`<span class="ac-meta-item">${iconSVG('phone',13)} ${a.patientPhone}</span>`:''}
+      ${a.patientPhone?`<span class="ac-meta-item">${iconSVG('phone',13)} ${esc(a.patientPhone)}</span>`:''}
     </div>
-    ${a.notes?`<div style="margin-top:5px;font-size:12px;color:var(--tx3);font-style:italic">${a.notes}</div>`:''}
+    ${a.notes?`<div style="margin-top:5px;font-size:12px;color:var(--tx3);font-style:italic">${esc(a.notes)}</div>`:''}
     <div class="ac-actions">
       <button class="ac-btn" data-action="detail" data-id="${a.id}">${iconSVG('eye',13)} Ver</button>
       <button class="ac-btn" data-action="edit" data-id="${a.id}">${iconSVG('edit',13)} Editar</button>
@@ -568,7 +598,7 @@ function renderWeek(wrap) {
             <span class="wdh-num">${d.getDate()}</span>
           </div>
           <div class="week-chips">
-            ${appts.map(a=>`<div class="wchip wchip-${a.status}" data-id="${a.id}" title="${a.startTime} ${a.patientName}">${a.startTime} ${a.patientName}</div>`).join('')}
+            ${appts.map(a=>`<div class="wchip wchip-${a.status}" data-id="${a.id}" title="${esc(a.startTime)} ${esc(a.patientName)}">${esc(a.startTime)} ${esc(a.patientName)}</div>`).join('')}
             ${extra?`<div class="wchip-more">+${extra}</div>`:''}
           </div>
         </div>`;
@@ -690,16 +720,16 @@ function renderPatients(wrap) {
       ${patients.length===0
         ? `<div class="empty">${iconSVG('users',50)}<div class="empty-title">${q?'Nenhum resultado':'Sem pacientes'}</div><div class="empty-sub">${q?'Tente outro nome.':'Adicione agendamentos para ver os pacientes aqui.'}</div></div>`
         : patients.map(p=>`
-          <div class="pat-item" data-patient="${p.name}">
-            <div class="pat-avatar" style="background:${avatarColor(p.name)}">${getInitials(p.name)}</div>
+          <div class="pat-item" data-patient="${esc(p.name)}">
+            <div class="pat-avatar" style="background:${avatarColor(p.name)}">${esc(getInitials(p.name))}</div>
             <div class="pat-info">
-              <div class="pat-name">${p.name}</div>
+              <div class="pat-name">${esc(p.name)}</div>
               <div class="pat-meta">${p.count} atendimento${p.count!==1?'s':''} · Último: ${fmtDateShort(p.last)}</div>
             </div>
             <div class="pat-acts">
-              ${p.phone?`<button class="pat-act-btn" data-phone="${p.phone}" title="Ligar">${iconSVG('phone')}</button>`:''}
-              <button class="pat-act-btn" data-patient-hist="${p.name}" title="Histórico">${iconSVG('clock')}</button>
-              <button class="pat-act-btn" data-new-appt="${p.name}" data-phone="${p.phone||''}" title="Agendar">${iconSVG('calendar-plus')}</button>
+              ${p.phone?`<button class="pat-act-btn" data-phone="${esc(p.phone)}" title="Ligar">${iconSVG('phone')}</button>`:''}
+              <button class="pat-act-btn" data-patient-hist="${esc(p.name)}" title="Histórico">${iconSVG('clock')}</button>
+              <button class="pat-act-btn" data-new-appt="${esc(p.name)}" data-phone="${esc(p.phone||'')}" title="Agendar">${iconSVG('calendar-plus')}</button>
             </div>
           </div>`).join('')
       }
@@ -855,9 +885,8 @@ function renderSettings(wrap) {
       showToast('Ative as notificações primeiro'); return;
     }
     try {
-      new Notification('🦷 Teste — Anderson Vale Agenda', {
+      showNotif('🦷 Teste — Anderson Vale Agenda', {
         body: 'Notificações funcionando corretamente!',
-        icon: '/icons/icon-192.png',
         tag: 'av-test',
       });
       showToast('Notificação de teste enviada!');
@@ -893,7 +922,8 @@ function openModal(type, data={}) {
   else if (type==='detail') renderDetailModal(data.id);
   else if (type==='patient') renderPatientModal(data.name);
 
-  ovl.classList.add('vis');
+  // Show on the next frame (after the sheet content is in the DOM) so the
+  // slide-up / fade-in transition actually plays.
   requestAnimationFrame(()=>ovl.classList.add('vis'));
 }
 function closeModal() {
@@ -983,13 +1013,13 @@ function renderEditModal(id) {
       <div class="form-group">
         <label>Paciente *</label>
         <div class="ac-wrap">
-          <input type="text" id="f-patient" value="${a.patientName||''}" autocomplete="off">
+          <input type="text" id="f-patient" value="${esc(a.patientName||'')}" autocomplete="off">
           <div class="ac-dropdown hidden" id="ac-drop"></div>
         </div>
       </div>
       <div class="form-group">
         <label>Telefone</label>
-        <input type="tel" id="f-phone" value="${a.patientPhone||''}">
+        <input type="tel" id="f-phone" value="${esc(a.patientPhone||'')}">
       </div>
       <div class="form-group">
         <label>Procedimento *</label>
@@ -1021,7 +1051,7 @@ function renderEditModal(id) {
       </div>
       <div class="form-group">
         <label>Observações</label>
-        <textarea id="f-notes" rows="2">${a.notes||''}</textarea>
+        <textarea id="f-notes" rows="2">${esc(a.notes||'')}</textarea>
       </div>
     </div>
     <div class="modal-foot">
@@ -1048,7 +1078,7 @@ function bindAddForm(sheet, editId) {
     if (!q) { acDrop.classList.add('hidden'); return; }
     const matches = uniquePatients().filter(p=>p.name.toLowerCase().includes(q)).slice(0,6);
     if (!matches.length) { acDrop.classList.add('hidden'); return; }
-    acDrop.innerHTML = matches.map(p=>`<div class="ac-opt" data-name="${p.name}" data-phone="${p.phone||''}">${p.name}${p.phone?` <small style="opacity:.6">${p.phone}</small>`:''}</div>`).join('');
+    acDrop.innerHTML = matches.map(p=>`<div class="ac-opt" data-name="${esc(p.name)}" data-phone="${esc(p.phone||'')}">${esc(p.name)}${p.phone?` <small style="opacity:.6">${esc(p.phone)}</small>`:''}</div>`).join('');
     acDrop.classList.remove('hidden');
     acDrop.querySelectorAll('.ac-opt').forEach(o=>{
       o.addEventListener('mousedown',e=>{
@@ -1108,19 +1138,19 @@ function renderDetailModal(id) {
       <button class="modal-close" id="modal-close-btn">${iconSVG('x')}</button>
     </div>
     <div class="detail-pat-hdr">
-      <div class="detail-avatar" style="background:${avatarColor(a.patientName)}">${getInitials(a.patientName)}</div>
+      <div class="detail-avatar" style="background:${avatarColor(a.patientName)}">${esc(getInitials(a.patientName))}</div>
       <div>
-        <div class="detail-pname">${a.patientName||'Paciente'}</div>
-        <div class="detail-proc">${a.procedure||'—'}</div>
+        <div class="detail-pname">${esc(a.patientName||'Paciente')}</div>
+        <div class="detail-proc">${esc(a.procedure||'—')}</div>
       </div>
     </div>
     <div class="detail-grid">
       <div class="detail-cell"><div class="detail-cell-lbl">Data</div><div class="detail-cell-val">${fmtDate(a.date)}</div></div>
-      <div class="detail-cell"><div class="detail-cell-lbl">Horário</div><div class="detail-cell-val">${a.startTime}${end?' – '+end:''}</div></div>
+      <div class="detail-cell"><div class="detail-cell-lbl">Horário</div><div class="detail-cell-val">${esc(a.startTime)}${end?' – '+end:''}</div></div>
       <div class="detail-cell"><div class="detail-cell-lbl">Duração</div><div class="detail-cell-val">${a.duration?a.duration+' min':'—'}</div></div>
-      <div class="detail-cell"><div class="detail-cell-lbl">Telefone</div><div class="detail-cell-val">${a.patientPhone||'—'}</div></div>
+      <div class="detail-cell"><div class="detail-cell-lbl">Telefone</div><div class="detail-cell-val">${esc(a.patientPhone||'—')}</div></div>
     </div>
-    ${a.notes?`<div style="padding:0 var(--sp-md) var(--sp-sm)"><div class="detail-cell-lbl">Observações</div><div style="font-size:14px;color:var(--tx2);margin-top:3px;line-height:1.5">${a.notes}</div></div>`:''}
+    ${a.notes?`<div style="padding:0 var(--sp-md) var(--sp-sm)"><div class="detail-cell-lbl">Observações</div><div style="font-size:14px;color:var(--tx2);margin-top:3px;line-height:1.5">${esc(a.notes)}</div></div>`:''}
     <div class="detail-status-row">
       <div class="set-section-title">Status</div>
       <div class="status-sel">
@@ -1162,10 +1192,10 @@ function renderPatientModal(name) {
       <button class="modal-close" id="modal-close-btn">${iconSVG('x')}</button>
     </div>
     <div class="detail-pat-hdr">
-      <div class="detail-avatar" style="background:${avatarColor(name)}">${getInitials(name)}</div>
+      <div class="detail-avatar" style="background:${avatarColor(name)}">${esc(getInitials(name))}</div>
       <div>
-        <div class="detail-pname">${name}</div>
-        <div class="detail-proc">${phone||'Sem telefone'}</div>
+        <div class="detail-pname">${esc(name)}</div>
+        <div class="detail-proc">${esc(phone||'Sem telefone')}</div>
       </div>
     </div>
     <div class="pat-history-stats">
@@ -1180,8 +1210,8 @@ function renderPatientModal(name) {
         : history.map((a,i)=>`
           <div class="pat-item" style="margin-bottom:var(--sp-sm);cursor:pointer" data-id="${a.id}">
             <div style="flex:1">
-              <div style="font-size:14px;font-weight:700;color:var(--tx1)">${a.procedure}</div>
-              <div style="font-size:12px;color:var(--tx2)">${fmtDate(a.date)} · ${a.startTime}</div>
+              <div style="font-size:14px;font-weight:700;color:var(--tx1)">${esc(a.procedure)}</div>
+              <div style="font-size:12px;color:var(--tx2)">${fmtDate(a.date)} · ${esc(a.startTime)}</div>
             </div>
             <span class="ac-badge badge-${a.status}" style="flex-shrink:0">${STATUS_LABELS[a.status]}</span>
           </div>`).join('')
@@ -1217,12 +1247,24 @@ function importData(e) {
   reader.onload=ev=>{
     try {
       const parsed = JSON.parse(ev.target.result);
-      const appts = parsed.appointments||parsed;
-      if (!Array.isArray(appts)) throw new Error('Formato inválido');
+      const raw = parsed.appointments||parsed;
+      if (!Array.isArray(raw)) throw new Error('Formato inválido');
+      // Keep only records that have at least a date, and normalize required fields
+      // so a malformed import can't break rendering/sorting later.
+      const appts = raw
+        .filter(a => a && typeof a === 'object' && a.date)
+        .map(a => ({
+          ...a,
+          id: a.id || uid(),
+          status: STATUS_LABELS[a.status] ? a.status : 'scheduled',
+          startTime: typeof a.startTime === 'string' ? a.startTime : '',
+        }));
+      if (!appts.length) { showToast('Nenhum agendamento válido no arquivo.'); return; }
       if (confirm(`Importar ${appts.length} agendamento(s)? Isso vai juntar com os dados atuais.`)) {
         appts.forEach(a=>{ if(!state.appointments.find(x=>x.id===a.id)) state.appointments.push(a); });
         saveAppointments();
         renderView();
+        updatePendingCount();
         showToast(`${appts.length} agendamentos importados!`);
       }
     } catch { showToast('Arquivo inválido.'); }
@@ -1404,15 +1446,19 @@ document.addEventListener('DOMContentLoaded', ()=>{
   renderHeader();
   renderView();
 
-  // Dismiss splash screen
+  // Dismiss splash screen and play the app entrance animation in sync.
   const splash = document.getElementById('splash');
+  const appEl = document.getElementById('app');
   if (splash) {
     requestAnimationFrame(()=>{
       setTimeout(()=>{
         splash.classList.add('out');
+        if (appEl) appEl.classList.add('booted');
         setTimeout(()=>splash.remove(), 600);
       }, 650);
     });
+  } else if (appEl) {
+    appEl.classList.add('booted');
   }
 
   // Nav buttons
@@ -1486,14 +1532,18 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   // Check notifications
   if('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').then(reg=>{
+    // Relative path so the SW registers correctly even when hosted on a subpath
+    // (e.g. GitHub Pages: user.github.io/dentista/).
+    navigator.serviceWorker.register('sw.js').then(reg=>{
       console.log('SW registered');
     }).catch(e=>console.log('SW error',e));
 
-    // Auto-reload when a new SW takes control (delivers updated files)
+    // Auto-reload when a NEW SW takes control (delivers updated files). Skip the
+    // very first install (no previous controller) to avoid a spurious reload.
+    const hadController = !!navigator.serviceWorker.controller;
     let swRefreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', ()=>{
-      if (swRefreshing) return;
+      if (swRefreshing || !hadController) return;
       swRefreshing = true;
       showToast('✨ Atualizando para nova versão...', 2500);
       setTimeout(()=> window.location.reload(), 2600);
